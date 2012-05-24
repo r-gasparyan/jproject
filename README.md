@@ -1,2 +1,1 @@
-ruben_test
-==========
+This is a simple Readme file for new repository
