@@ -1,1 +1,2 @@
-This is a simple Readme file for new repository
+Author: R.Gasparyan
+This is a Readme file for second branch
