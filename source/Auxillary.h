@@ -1,3 +1,5 @@
+// changed 25 Vfe 2012
+
 #pragma once
 #include <string>
 #include <time.h>
