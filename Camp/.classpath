@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry excluding="javax/jmdns/test/" kind="src" path="jmdns"/>
+	<classpathentry kind="src" path="Common"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.7"/>
+	<classpathentry exported="true" kind="lib" path="C:/IndividualProgrammingProject/jmdns/lib/jmdns.jar"/>
+	<classpathentry exported="true" kind="lib" path="C:/IndividualProgrammingProject/sqlite/sqlite-jdbc-3.7.2.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

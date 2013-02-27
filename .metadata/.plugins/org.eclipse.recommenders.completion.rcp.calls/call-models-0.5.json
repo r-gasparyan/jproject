@@ -1,0 +1,43 @@
+{
+  "C:\\Program Files (x86)\\Java\\jre7\\lib\\rt.jar": {
+    "coordinate": "jre:jre:zip:call:1.0.0",
+    "location": "C:\\Program Files (x86)\\Java\\jre7\\lib\\rt.jar",
+    "status": "RESOLVED",
+    "error": "No class path info available for \u0027C:\\Program Files (x86)\\Java\\jre7\\lib\\rt.jar\u0027. Skipped."
+  },
+  "C:\\IndividualProgrammingProject\\CampDevice\\src": {
+    "location": "C:\\IndividualProgrammingProject\\CampDevice\\src",
+    "status": "UNRESOLVED",
+    "error": "No class path info available for \u0027C:\\IndividualProgrammingProject\\CampDevice\\src\u0027. Skipped."
+  },
+  "C:\\IndividualProgrammingProject\\jmdns\\src": {
+    "location": "C:\\IndividualProgrammingProject\\jmdns\\src",
+    "status": "UNRESOLVED",
+    "error": "No class path info available for \u0027C:\\IndividualProgrammingProject\\jmdns\\src\u0027. Skipped."
+  },
+  "C:\\IndividualProgrammingProject\\TownDevice\\src": {
+    "location": "C:\\IndividualProgrammingProject\\TownDevice\\src",
+    "status": "UNRESOLVED",
+    "error": "No class path info available for \u0027C:\\IndividualProgrammingProject\\TownDevice\\src\u0027. Skipped."
+  },
+  "C:\\IndividualProgrammingProject\\Helicopter\\src": {
+    "location": "C:\\IndividualProgrammingProject\\Helicopter\\src",
+    "status": "UNRESOLVED",
+    "error": "No class path info available for \u0027C:\\IndividualProgrammingProject\\Helicopter\\src\u0027. Skipped."
+  },
+  "C:\\IndividualProgrammingProject\\Common": {
+    "location": "C:\\IndividualProgrammingProject\\Common",
+    "status": "UNRESOLVED",
+    "error": "No class path info available for \u0027C:\\IndividualProgrammingProject\\Common\u0027. Skipped."
+  },
+  "C:\\IndividualProgrammingProject\\AirCompany\\src": {
+    "location": "C:\\IndividualProgrammingProject\\AirCompany\\src",
+    "status": "UNRESOLVED",
+    "error": "No class path info available for \u0027C:\\IndividualProgrammingProject\\AirCompany\\src\u0027. Skipped."
+  },
+  "C:\\IndividualProgrammingProject\\Camp\\src": {
+    "location": "C:\\IndividualProgrammingProject\\Camp\\src",
+    "status": "UNRESOLVED",
+    "error": "No class path info available for \u0027C:\\IndividualProgrammingProject\\Camp\\src\u0027. Skipped."
+  }
+}

@@ -1,0 +1,8 @@
+1353622670706	Extract method 'createTables'
+1353622759375	Rename method 'createTablesIfNotExists'
+1353625236944	Rename method 'broadcast'
+1353633846826	Rename local variable 'tt'
+1353668132084	Rename method 'onBroadcastReceived'
+1353670514748	Rename local variable 'info'
+1353670914328	Rename local variable 'number'
+1353672397740	Rename local variable 'info'

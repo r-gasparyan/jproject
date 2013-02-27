@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<session version="1.0">
+<refactoring comment="Rename local variable &apos;connectSocket&apos; in &apos;CampDevice.requestRecords(...)&apos; to &apos;clientSocket&apos;&#x0D;&#x0A;- Original project: &apos;CampDevice&apos;&#x0D;&#x0A;- Original element: &apos;CampDevice.requestRecords(HostInfo).connectSocket&apos;&#x0D;&#x0A;- Renamed element: &apos;connectSocket&apos;&#x0D;&#x0A;- Update references to refactored element" description="Rename local variable &apos;connectSocket&apos;" id="org.eclipse.jdt.ui.rename.local.variable" input="/src&lt;{CampDevice.java[CampDevice~requestRecords~QHostInfo;@connectSocket!2347!2367!2354!2366!QSocket;!0!false" name="clientSocket" references="true" stamp="1351556715325" version="1.0"/>
+</session>

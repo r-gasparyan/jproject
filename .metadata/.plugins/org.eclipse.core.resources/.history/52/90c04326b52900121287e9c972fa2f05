@@ -1,0 +1,441 @@
+import java.io.BufferedReader;
+//import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+//import java.io.OutputStream;
+//import java.io.Serializable;
+
+import java.net.DatagramSocket;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.UnknownHostException;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.LinkedList;
+import java.util.Random;
+//import java.util.Scanner;
+
+/** 
+ *  This class contains main code for camp computer behavior
+ */
+
+/**
+ * @author ruben
+ *
+ */
+
+public class CampDevice {
+	
+	private static ArrayList<RequestRecord>  _requests = new ArrayList<RequestRecord>();
+	private static ArrayList<TimeTableEntry> _timetable = new ArrayList<TimeTableEntry>();
+	private static LinkedList<HostInfo>	     _camp_devices;
+	
+	/**
+	 * Data members are:
+	 * - current ip address
+	 * - list of all up-to-date non-confirmed requests
+	 * - connection to personal database 
+	 */
+	
+	public static void main(String[] args) {
+		
+		/* 1. find switched-on devices
+		 * 2. download booking/canceling records from one of them
+		 * 3. launch main loop: 
+		 * - send records by request, 
+		 * - receive other bookings, 
+		 * - broadcast own-made bookings
+		*/
+		
+		SQLiteConnector cntor = new SQLiteConnector("C:\\IndividualProgrammingProject\\CampDB.sqlite");
+		
+		//processResponse("1");		
+		
+		
+		/* Start finding switched-on devices in separate thread */
+		String deviceName = readLine();
+		int port = getAvailablePort();
+		//DeviceFinderThread thread = new DeviceFinderThread(deviceName, port);
+		//thread.start();
+		
+		/* Creating acceptor thread for incoming connections. 
+		 * Such connections will ask for data about requests and timetable, 
+		 * or send new data (like helicopters)
+		 */
+		ArrayList<RequestRecord> my_requests = new ArrayList<RequestRecord>();
+		ArrayList<TimeTableEntry> my_timetable = new ArrayList<TimeTableEntry>();
+		AcceptThread accept = new AcceptThread(port, my_requests, my_timetable);
+		//accept.start();		
+		
+		
+//		String response = new String();
+//		do
+//		{
+//			/* Refresh part */
+//			_camp_devices = thread.getDevices();
+//			
+//			/* Main menu */
+//			printMainMenu();
+//			response = readLine();
+//			processResponse(response);			
+//		} while (response != "0");
+		
+			
+		/* Download booking/canceling records from one of devices */
+//		LinkedList<HostInfo> hosts = thread.getDevices();
+//		if (!hosts.isEmpty())
+//		{
+//			//TODO connect using socket connection and request records 
+//			HostInfo info = hosts.getFirst();		
+//		}
+		
+		
+//		HostInfo host = new HostInfo("localhost", port);
+//		ArrayList<RequestRecord> requests = requestRecords(host);
+//		
+//		try {
+//			thread.join();
+//		} catch (InterruptedException e) {
+//			// TODO Auto-generated catch block
+//			e.printStackTrace();
+//		}
+		
+//		do {
+//			
+//		} while (thread.);
+		
+		
+		
+		
+//		if (thread.isAlive())
+//		{
+//			thread.interrupt();
+//		}
+		
+	}
+	
+	public static void printMainMenu()
+	{
+		System.out.println("Select menu item:");
+		System.out.println("1. Make a booking request");
+		System.out.println("2. Make a canceling request");
+		System.out.println("3. Show all requests");
+		System.out.println("4. Show timetable");
+		System.out.println("5. See the list of CAMP devices");
+		
+		System.out.println("0. Exit");
+	}
+	
+	private static void processResponse(String response) {
+		switch (response){
+		case "1": // [MAKE A BOOKING] menu item			
+			// print out timetable
+			printTimetable();
+			
+			System.out.println("*** MAKE A BOOKING ***");
+			System.out.println("Passenger name: ");
+			String passenger = readLine();
+			
+			// flight time part
+			String date;
+			boolean ok = false;
+			Date expected_flight_time = null;
+			SimpleDateFormat ft = new SimpleDateFormat ("HH:mm dd/MM/yyyy");
+			do{				
+				System.out.println("Date of flight (e.g. 13:45 14/05/2012 or 0 to EXIT): ");
+				date = readLine();
+				if (date.equals("0")){
+					System.out.println("Exit.");
+					return;
+				}					
+				try {
+					expected_flight_time = ft.parse(date);
+					System.out.println(ft.format(expected_flight_time));
+					ok = true;
+				}
+				catch(ParseException e) {
+					System.out.println("Unable to parse " + date);					
+				}
+			} while (!ok);
+			
+			// direction part
+			int direction = -1;  
+			do{
+			System.out.println("Select direction (0 - TO CAMP, 1 - TO TOWN):");
+				String dir = readLine();
+				try{
+				direction = Integer.parseInt(dir);
+				}
+				catch(NumberFormatException ex){
+					System.out.println("Non-valid integer.");
+				}
+			} while (direction != 0 && direction != 1);			
+			
+			// request type is 0 because we are doing booking
+			int request_type = 0;
+			
+			// type - ON_DEMAND or SPECIFIED_FLIGHT
+			int ticket_type = -1;
+			do{
+				System.out.println("Select ticket type (0 - SPECIFIED_TIME_FLIGHT, 1 - ON_DEMAND):");
+
+				String type = readLine();
+				try{
+					ticket_type = Integer.parseInt(type);
+				}
+				catch(NumberFormatException ex){
+					System.out.println("Non-valid integer.");
+				}
+			} while (ticket_type != 0 && ticket_type != 1);
+			
+			RequestRecord record = new RequestRecord(passenger, expected_flight_time, direction, request_type, ticket_type);
+			System.out.println(record.toString());
+			
+			// put request into db
+		}
+	}
+	
+	/**
+	 * 	This function takes system timetable and prints it out
+	 * 	in two separated parts: times for flights to CAMP and
+	 * 	times for flights to TOWN
+	 */
+	private static void printTimetable() {		
+		// taking TO_CAMP
+		System.out.println("*** FLIGHTS TIME TABLE ***");
+		System.out.println("TO CAMP: ");
+		ArrayList<TimeTableEntry> timetable = getTimeTable();
+		for(int i = 0; i < timetable.size(); ++i)
+		{
+			TimeTableEntry tt = timetable.get(i);
+			if (tt.toCamp())
+			{
+				System.out.print("#" + i + " at " + tt.getTimeString() + " ac:" + tt.getAirCompany() + " ");
+			}
+		}
+		
+		System.out.println("TO TOWN: ");
+		for(int i = 0; i < timetable.size(); ++i)
+		{
+			TimeTableEntry tt = timetable.get(i);
+			if (tt.toTown())
+			{
+				System.out.print("#" + i + " at " + tt.getTimeString() + " ac:" + tt.getAirCompany() + " ");
+			}
+		}
+	}
+	
+	/**
+	 * 	This function takes info about timetable from database and 
+	 * 	returns it as result in array list representation
+	 * 	@return array of timetable entries
+	 */
+	private static ArrayList<TimeTableEntry> getTimeTable() {
+		// for now it is stub
+		SimpleDateFormat ft = new SimpleDateFormat ("HH:mm dd/MM/yyyy");
+		//String date = ;
+		
+		//Date time = ft.parse(date);
+		//
+		return _timetable;
+	}
+	
+	/*
+	 * Protocol:
+	 * 1st message: command {giveMeRequests or giveMeTimetable}
+	 * 2nd message: number of objects ready to send
+	 * after:		objects (type depend on command)
+	 * last: 		say "goodbye"
+	 */	
+	
+
+
+	/**
+	 * This function requests timetable from destination host
+	 * @param info destination host credentials
+	 * @return list of timetable entries or empty list in case of unreachable host
+	 */
+	private static ArrayList<TimeTableEntry> requestTimetable(HostInfo info) {
+		ArrayList<TimeTableEntry> timetable = new ArrayList<TimeTableEntry>();
+		
+		try
+		{		
+			System.out.println("requestTimetable");
+			// open new socket connection
+			Socket clientSocket = new Socket(info.getIp(), info.getPort());
+			System.out.println("Connected to: " + clientSocket.getInetAddress().getHostAddress() + ". OK");
+			ObjectOutputStream out = new ObjectOutputStream(clientSocket.getOutputStream());
+			out.flush();
+			ObjectInputStream in = new ObjectInputStream(clientSocket.getInputStream());			
+			
+			// (1) send command			
+			out.writeObject(new String("giveMeRequests"));
+			out.flush();
+			
+			// (2) receive number of objects
+			int numberOfObjects = in.readInt();			
+			
+			// (3)receive booking/canceling records
+			for (int i = 0; i < numberOfObjects; ++i)
+			{
+				try
+				{
+					TimeTableEntry record = (TimeTableEntry)in.readObject();
+					timetable.add(record);
+				}
+				catch(ClassNotFoundException e)
+				{
+					System.err.println("Data received in unknown format");
+				}
+			}
+			
+			// (4) say "goodbye"			
+			out.writeObject(new String("goodbye"));
+			out.flush();
+			
+			in.close();
+			out.close();
+			clientSocket.close();
+			
+			return timetable;
+		}
+		catch(UnknownHostException unknownHost)
+		{
+			System.err.println("Unknown host: " + info.getIp() + ":" + info.getPort());	
+			return new ArrayList<TimeTableEntry>();
+		}
+		catch(IOException ioException)
+		{
+			System.err.println("IOexception occured");
+			ioException.printStackTrace();
+			return new ArrayList<TimeTableEntry>();
+		}				
+	}
+
+	/**
+	 * This function requests booking/canceling records from destination host
+	 * @param info destination host credentials
+	 * @return list of request records or empty list in case of unreachable host
+	 */
+	private static ArrayList<RequestRecord> requestRecords(HostInfo info) {
+		ArrayList<RequestRecord>  requests = new ArrayList<RequestRecord>();		
+		
+		try
+		{
+			System.out.println("requestRecords");			
+			// open new socket connection
+			Socket clientSocket = new Socket(info.getIp(), info.getPort());
+			System.out.println("Connected to: " + clientSocket.getInetAddress().getHostAddress() + ". OK");
+			ObjectOutputStream out = new ObjectOutputStream(clientSocket.getOutputStream());
+			out.flush();
+			ObjectInputStream in = new ObjectInputStream(clientSocket.getInputStream());			
+			
+			// (1) send command			
+			out.writeObject(new String("giveMeRequests"));
+			out.flush();
+			
+			// (2) receive number of objects
+			int numberOfObjects = in.readInt();			
+			
+			// (3)receive booking/canceling records
+			for (int i = 0; i < numberOfObjects; ++i)
+			{
+				try
+				{
+					RequestRecord record = (RequestRecord)in.readObject();
+					requests.add(record);
+				}
+				catch(ClassNotFoundException e)
+				{
+					System.err.println("Data received in unknown format");
+				}
+			}
+			
+			// (4) say "goodbye"			
+			out.writeObject(new String("goodbye"));
+			out.flush();
+			
+			in.close();
+			out.close();
+			clientSocket.close();
+			
+			return requests;
+		}
+		catch(UnknownHostException unknownHost)
+		{
+			System.err.println("Unknown host: " + info.getIp() + ":" + info.getPort());	
+			return new ArrayList<RequestRecord>();
+		}
+		catch(IOException ioException)
+		{
+			System.err.println("IOexception occured");
+			ioException.printStackTrace();
+			return new ArrayList<RequestRecord>();
+		}			
+	}
+
+	/** Function for searching any available port for socket connection
+	 *  between MIN_PORT_NUMBER and MAX_PORT_NUMBER specified in the function	
+	 *  
+	 * @return free port number
+	 */
+	public static int getAvailablePort() {
+		int MIN_PORT_NUMBER = 1024;
+	    int MAX_PORT_NUMBER = 16384;
+	    
+		int candidate;		
+		Random generator = new Random();	
+		do
+		{			
+			candidate = generator.nextInt(MAX_PORT_NUMBER - MIN_PORT_NUMBER) + MIN_PORT_NUMBER - 1;			
+			ServerSocket ss = null;
+	        DatagramSocket ds = null;
+	        try {
+	            ss = new ServerSocket(candidate);
+	            ss.setReuseAddress(true);
+	            ds = new DatagramSocket(candidate);
+	            ds.setReuseAddress(true);	            
+	            break;
+	        } 
+	        catch (IOException e) {
+	        } 
+	        finally {
+	            if (ds != null) {
+	                ds.close();
+	            }
+	            if (ss != null) {
+	                try {
+	                    ss.close();
+	                } 
+	                catch (IOException e) {	                    
+	                }
+	            }
+	        }			
+		} while(true);
+		return candidate;
+	}
+	
+	/** Function for reading input line	
+	 *  
+	 * @return string containing user input
+	 */
+	public static String readLine()
+	{
+		String s = "";		
+		try {
+			InputStreamReader converter = new InputStreamReader(System.in);
+			BufferedReader in = new BufferedReader(converter);
+			s = in.readLine();			
+		} 
+		catch (IOException e) {
+			e.printStackTrace();
+		}
+		return s;
+	}
+
+}

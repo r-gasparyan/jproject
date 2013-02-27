@@ -1,0 +1,7 @@
+1353454463171	Delete element
+1353456757792	Rename field '_townDevice'
+1353456784974	Rename method 'setConfirmHandler'
+1353502517326	Rename method 'getTownDevice'
+1353543004495	Rename type 'Waiter'
+1353543055439	Rename type 'TimerTask'
+1353548050370	Rename local variable '_requests'

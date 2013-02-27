@@ -1,0 +1,375 @@
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.LinkedList;
+
+/**
+ * This is an air company device application.
+ * Air company is responsible for making decision about requests 
+ * for booking or cancelling to flights of this company.
+ * 
+ * At the launch, air company discovers if there are any other air companies.
+ * If they present - it requests all data from them and starts listening for incoming connections.
+ * 
+ * Air company receives requests from town device, they are being
+ * pushed to processing queue and not being processed until some helicopter 
+ * landed.
+ */
+
+/**
+ * @author ruben
+ *
+ */
+public class AirCompanyDevice extends Thread {
+	private int 						_port = 0;	
+	private String						_companyName = null;
+	private ActiveDeviceFinder 			_finder = null;
+	private AirCompanyNetworkOperator 	_operator = null;
+	private DatabaseConnector			_sqlite = null;
+	
+	public void run()
+	{
+		initialize();
+
+		/* Main menu */
+		try
+		{			
+			String response = null;
+			do
+			{				
+				printMainMenu();
+				response = readLine();				
+				processResponse(response);			
+			} while ( !response.equals("0") );			
+
+		} 
+		catch(Exception e){
+			e.printStackTrace();
+		}	
+		finally{			
+			deinitialize();			
+		}	
+	}
+	
+	private void initialize()
+	{			
+		_sqlite = new DatabaseConnector("aircompany.sqlite");
+		
+		System.out.println("Air company server application initialization...");
+			
+		_operator = new AirCompanyNetworkOperator();
+		_operator.setListener(this);
+		_operator.start();
+		
+		_port = _operator.getPort();
+		
+		do {
+		System.out.println("Input the name of air company:");
+		_companyName = readLine();
+		} while (_companyName.equals(""));
+		
+		/* find all air companies */		
+		_finder = new ActiveDeviceFinder("_aircompany._tcp.local.", _companyName, _port);	
+		LinkedList<HostInfo> list = _finder.getSimilarDeviceList();
+		for (int i = 0; i < list.size(); ++i) {
+			System.out.println("Found air company: " + list.get(i).toString());
+		}		
+		
+		/* ask request records and timetable from first device,
+		   considering they all synchronized */
+		if (!list.isEmpty()) {
+			HostInfo info = list.getFirst();
+			System.out.println("Requesting data from " + info.getName() + " about requests and timetable");
+			ArrayList<RequestRecord> requests = NetworkOperator.requestRecords(info);
+			_sqlite.mergeRequests(requests);
+			ArrayList<TimeTableEntry> timetable = NetworkOperator.requestTimetable(info);
+			_sqlite.mergeTimetable(timetable);
+			System.out.println("Requesting finished");
+		}	
+				
+		System.out.println("Initialization finished.");
+	}
+	
+	private void deinitialize() 
+	{		
+		System.out.println("Closing application...");
+		
+		/* stop jmdns service */ 
+		_finder.closeJmDNS();
+				
+		/* stop acceptor thread */
+		_operator.stopAccepting();
+		
+		try {		
+			_operator.join();
+		} catch (InterruptedException e) {
+			System.out.println("join() interrupted");
+		}
+		
+		_sqlite.closeConnection();
+		
+		System.out.println("Application closed.");
+	}	
+
+	private void printMainMenu()
+	{
+		System.out.println("");
+		System.out.println("Select menu item:");	
+		System.out.println("1. Add timetable entry");
+		System.out.println("2. Show all requests");
+		System.out.println("3. Show timetable");
+		System.out.println("4. See the list of air companies");
+		System.out.println("5. Send take off command to helicopter");
+		System.out.println("0. Exit");
+	}
+	
+	private void processResponse(String response) {
+		switch (response){
+		case "1":			
+			addTimetableEntry();
+			break;		
+		case "2":
+			showAllRequests();
+			break;
+		case "3":
+			showTimetable();			
+			break;
+		case "4":
+			showAirCompanies();
+			break;
+		case "5":
+			sendTakeOff();
+			break;
+		default:
+			break;
+		}
+	}
+	
+	private void addTimetableEntry()
+	{
+		System.out.println("Input flight number: ");
+		int flightNumber = readInt();
+		
+		if (_sqlite.hasFlight(flightNumber)) {
+			System.out.println("Such flight number is already in the timetable.");
+			return;
+		}
+		
+		SimpleDateFormat ft = new SimpleDateFormat ("HH:mm");
+		System.out.println("Input flight time (e.g. 22:35):");
+		String flightTime = readLine();
+		try {
+			ft.parse(flightTime);
+		} catch (Exception e) {
+			System.out.println("Invalid flight time.");
+			return;
+		}
+		
+		System.out.println("Input direction (0 - TO CAMP, 1 - TO TOWN):");
+		int direction = readInt();
+		if (direction != 0 && direction != 1) {
+			System.out.println("Invalid direction.");
+			return;
+		}
+		
+		System.out.println("Input air company name to operate the flight: ");
+		boolean airCompanyExists = false;
+		LinkedList<HostInfo> airCompanies = getAirCompanies();		
+		ArrayList<String> otherAirCompanies = getAirCompaniesNames(airCompanies);
+		String airCompany = readLine();
+		for (String name : otherAirCompanies) {			
+			if (name.equals(airCompany)) {
+				airCompanyExists = true;
+				break;
+			}
+		}
+		if (airCompanyExists || airCompany.equals(_companyName)) {
+			TimeTableEntry entry = new TimeTableEntry(flightNumber, flightTime, direction, airCompany);
+			_sqlite.addTimeTableEntry(entry);
+			ArrayList<TimeTableEntry> timetable = new ArrayList<TimeTableEntry>();
+			timetable.add(entry);
+			System.out.println("Entry " + entry.toString() + " successfully added to the system.");
+			NetworkOperator.sendBroadcast(airCompanies, null, timetable);	
+		} else {
+			System.out.println("No such air company. Don't want to take care of other's flights.");
+		}		
+	}
+	
+	private void showAllRequests()
+	{
+		ArrayList<RequestRecord> reqs = _sqlite.getAllRequests();
+		if (!reqs.isEmpty()) {
+			System.out.println("REQUESTS LIST:");
+			for (int i = 0; i < reqs.size(); ++i)
+			{
+				System.out.println(i + ". " + reqs.get(i).toString());
+			}			
+		} else {
+			System.out.println("NO REQUESTS TO DATE.");
+		}
+		
+	}
+	
+	private void showTimetable()
+	{
+		System.out.println("Select direction (0 - TO CAMP, 1 - TO TOWN):");
+		int direction = readInt();
+		if (direction == 0 || direction == 1) {
+			ArrayList<TimeTableEntry> timetable = _sqlite.getTimeTable();
+			if (timetable.isEmpty()) {
+				System.out.println("*** Timetable is empty ***");
+				return;
+			}
+			
+			String dir = (direction == 0) ? "TO CAMP" : "TO TOWN";		
+			System.out.println("*** FLIGHTS TIME TABLE (Flight Number - Time) *** " + dir + " ***");		
+			
+			int count = 0;
+			String line = new String();			 
+			for(int i = 0; i < timetable.size(); ++i)
+			{
+				TimeTableEntry entry = timetable.get(i);
+				if (entry.getDirection() == direction) {
+					++count;
+					line += entry.toString();				
+					if (count % 4 == 0) {
+						System.out.println(line);
+						line = "";
+					}
+				}				
+			}				
+			System.out.println(line);				
+		} else {
+			System.out.println("Incorrect direction.");
+			return;
+		}		
+	}
+	
+	private void showAirCompanies()
+	{			
+		System.out.println("AIR COMPANIES LIST: ");
+		LinkedList<HostInfo> list = getAirCompanies();
+		if (!list.isEmpty()) {	
+			for (int i = 0; i < list.size(); ++i) {
+				System.out.println(list.get(i).toString());
+			}
+			System.out.println("- and me: " + _finder.whoAmI().toString());
+		} else {
+			System.out.println("- no companies except me: " + _finder.whoAmI().toString());
+		}		
+	}
+	
+	private void sendTakeOff()
+	{
+		LinkedList<HostInfo> list = _finder.jmdnsRequestDevices("_helicopter._tcp.local.");
+		if (list.isEmpty()) {
+			System.out.println("No helicopters in the system.");
+		} else {
+			System.out.println("HELICOPTERS: ");
+			for (int i = 0; i < list.size(); ++i) {
+				System.out.println(i + ". " + list.get(i).toString());
+			}
+			
+			System.out.println("Select helicopter number to take off: ");
+			int number = readInt();
+			
+			if (number < 0 || number >= list.size()) {
+				System.out.println("Invalid number.");
+				return;
+			}
+			
+			HostInfo helicopter = list.get(number);
+			NetworkOperator.sendTakeOff(helicopter);
+		}		
+	}
+
+	public void helicopterLanded()
+	{	
+		System.out.println("Helicopter landed and passed new requests to us.");
+		ArrayList<RequestRecord> notCheckedRequests = getNotCheckedRequests();		
+		
+		LinkedList<HostInfo> airCompanies = getAirCompanies();
+		ArrayList<String> otherAirCompanies = getAirCompaniesNames(airCompanies);
+		ArrayList<RequestRecord> processedRequests = processRequests(otherAirCompanies, notCheckedRequests);		
+				
+		NetworkOperator.sendBroadcast(airCompanies, processedRequests, null);
+	}
+
+	private ArrayList<RequestRecord> getNotCheckedRequests() {		
+		return _sqlite.getNotCheckedRequests();
+	}
+
+	private LinkedList<HostInfo> getAirCompanies() {		
+		return _finder.requestSimilarDeviceList();
+	}
+	
+	private ArrayList<String> getAirCompaniesNames(LinkedList<HostInfo> airCompanies) 
+	{
+		ArrayList<String> names = new ArrayList<String>();
+		for (HostInfo info : airCompanies) {
+			names.add(info.getName());
+		}
+		return names;
+	}
+	
+	private ArrayList<RequestRecord> processRequests(ArrayList<String> otherCompanies, ArrayList<RequestRecord> requests)
+	{
+		System.out.println("Started making decisions routine.");
+		ArrayList<RequestRecord> processedRequests = new ArrayList<RequestRecord>();
+		for (int i = 0; i < requests.size(); ++i) {
+			RequestRecord record = requests.get(i);
+			int flight_number = record.getFlightNumber();
+			TimeTableEntry flight = _sqlite.getTimeTableEntry(flight_number);
+			if (flight != null && !otherCompanies.contains(flight.getAirCompany())) {
+				record.markAsChecked();		
+				
+				if (record.getRequestType() == 0) {
+					// process booking
+					if (_sqlite.flightHasFreeSeats(flight_number, record.getFlightDate())) {
+						record.confirm();
+						processedRequests.add(record);
+					} 
+				} else {
+					// process cancelling					
+					_sqlite.removeRequest(Integer.valueOf(record.getPassengerName()));
+				}
+			}
+		}
+		
+		System.out.println("Finished making decisions routine.");
+		return processedRequests;
+	}	
+	
+	/** Function for reading input line 
+	 * @return string containing user input
+	 */
+	public String readLine()
+	{
+		String s = "";		
+		try {
+			InputStreamReader converter = new InputStreamReader(System.in);
+			BufferedReader in = new BufferedReader(converter);
+			s = in.readLine();			
+		} 
+		catch (IOException e) {
+			e.printStackTrace();
+		}
+		return s;
+	}
+	
+	/**
+	 * Reads integer value from input stream
+	 * @return passed integer
+	 */
+	private int readInt() {
+		int value = Integer.MIN_VALUE;
+		try{
+			value = Integer.parseInt(readLine());										
+		}
+		catch(NumberFormatException ex){			
+		}
+		return value;
+	}
+}

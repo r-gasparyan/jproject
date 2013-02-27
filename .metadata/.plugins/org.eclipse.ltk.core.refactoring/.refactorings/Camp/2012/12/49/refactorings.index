@@ -1,0 +1,7 @@
+1354386202531	Extract method 'showAllRequests'
+1354386222672	Extract method 'showTimetable'
+1354386240292	Extract method 'showCampDevices'
+1354408838881	Rename local variable 'airCompanies'
+1354408854349	Rename local variable 'airCompany'
+1354408866902	Rename local variable 'airCompany'
+1354408879453	Rename local variable 'sendedOk'

@@ -1,0 +1,7 @@
+1352164084988	Rename field 'jmdns'
+1352164861621	Change method 'DeviceFinderThread'
+1352165128601	Change method 'DeviceFinderThread'
+1352418950922	Rename local variable 'cntor'
+1352421832533	Rename field 'sqlite'
+1352509034094	Extract method 'getRequestRecordByQuery'
+1352510113831	Extract method 'makeBooking'

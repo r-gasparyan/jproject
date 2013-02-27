@@ -1,0 +1,77 @@
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+
+/**
+ * 	This class is designed to operate with single file SQLite database using 
+ * 	JDBC driver for connection between java and SQLite
+ */
+
+/**
+ * @author ruben gasparian
+ *
+ */
+
+public class SQLiteConnector {
+	
+	Connection connection = null;  
+      
+     
+	
+	/**
+	 *	Connecting to the database with provided file path.
+	 *  @param databasePath - full file name for SQLite database
+	 */
+	public SQLiteConnector(String databasePath)
+	{
+		try{
+			Class.forName("org.sqlite.JDBC"); 
+			connection = DriverManager.getConnection("jdbc:sqlite:" + databasePath);	
+			System.out.println("Created");
+		}
+		catch (ClassNotFoundException e){
+			
+		} catch (SQLException e) {
+			System.out.println("SQL caused exception");
+		}
+	}
+	
+	/**
+	 *	Execute query
+	 *  @param databasePath - full file name for SQLite database
+	 *  @return ResultSet object containing SQL output
+	 */
+	public ResultSet execute(String query)
+	{
+		ResultSet resultSet = null;
+		try {
+			Statement statement = connection.createStatement();
+			resultSet = statement.executeQuery(query);
+		} catch (SQLException e) {
+			System.out.println("Could not execute query: " + query);
+		}
+
+		return resultSet; 
+	}
+	
+	public ArrayList<TimeTableEntry> getTimeTable()
+	{
+		String query = "select * from TimeTable";
+		ResultSet table = execute(query);
+		try {
+			while (table.next()) {
+				System.out.println("Flight=" + table.getInt("FlightNumber") + " Time=" + table.getTime("FlightTime")
+						+ " Direction=" + table.getInt("Direction") + " AirCompany=" + table.getString("AirCompany"));				
+			}
+			table.close();
+		} catch (SQLException e) {
+			System.out.println("Problem with SQL in timetable request code");
+		}            
+		
+		return new ArrayList<TimeTableEntry>();
+	}
+
+}

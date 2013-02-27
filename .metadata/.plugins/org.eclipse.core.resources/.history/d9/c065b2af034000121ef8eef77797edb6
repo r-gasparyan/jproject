@@ -1,0 +1,290 @@
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.LinkedList;
+import java.util.Timer;
+
+/**
+ * This class encapsulates all helicopter functionality.
+ * Helicopter is active device in relation to air company application,
+ * also it is active in relation to camp device. It means that however the 
+ * helicopter takeoff is being controlled by air company, after landing it 
+ * proactively initiates data transfer to camp device or air company.
+ * Air company only sends "takeoff" command for helicopter to take off.
+ * 
+ *  Talking about discovering network, helicopter uses passive device finding
+ *  and not registering service.
+ *  
+ *  To start a helicopter application, you need to specify the initial state:
+ *  "IN_CAMP or "IN_TOWN", and the name of owner air company. When helicopter 
+ *  is in journey it has state "IN_FLIGHT".
+ */
+
+/**
+ * @author ruben
+ *
+ */
+public class HelicopterDevice extends Thread {
+	private HelicopterNetworkOperator	_operator = null;
+	private ActiveDeviceFinder			_finder = null;	
+	private ArrayList<RequestRecord> 	_requests = null;
+	private ArrayList<TimeTableEntry> 	_timetable = null;
+	private ArrayList<String>			_passengers = null;
+	private String						_owner = null;
+	private String 						_state = null;
+	private String						_previousState = null;
+	private int 						_flight_duration = 1*60*1000; // 1 minute
+	
+	public void run()
+	{
+		initialize_helicopter();
+		
+		try
+		{			
+			System.out.println("To stop the helicopter application press \"Q\"");
+			String response = null;
+			do
+			{					
+				response = readLine();						
+			} while ( !response.toUpperCase().equals("Q") );			
+			
+		} catch(Exception e) {
+			e.printStackTrace();
+		} finally {			
+			deinitialize_helicopter();					
+		}
+	}
+	
+	/* Manipulating data carried by helicopter */
+	public synchronized ArrayList<String> getPassengers() {
+		return _passengers;
+	}
+
+	public synchronized void setPassengers(ArrayList<String> passengers) {
+		_passengers = passengers;
+	}
+
+	public synchronized void setRequests(ArrayList<RequestRecord> requests)  {
+		_requests.clear();
+		_requests = requests;
+	}
+	
+	public synchronized ArrayList<RequestRecord> getRequests()	{
+		return _requests;
+	}
+	
+	public synchronized void setTimetable(ArrayList<TimeTableEntry> timetable)  {
+		_timetable.clear();
+		_timetable = timetable;
+	}
+	
+	public synchronized ArrayList<TimeTableEntry> getTimetable()  {
+		return _timetable;
+	}	
+	
+	/**
+	 * This function is used just to save previous state 
+	 * of helicopter along with current state.
+	 * @param state
+	 */
+	private void setState(String state)
+	{
+		_previousState = _state;
+		_state = state;
+	}
+
+	/**
+	 * When helicopter is in town, he should request records and timetable
+	 * from air company, otherwise from camp device.
+	 * @param info 
+	 */
+	public synchronized void takeOff() 
+	{
+		System.out.println("Takeoff received");
+		switch (_state) {
+		case "IN_CAMP":		
+			HostInfo campDevice = getCampDevice();
+			_requests = NetworkOperator.requestRecords(campDevice);
+			_timetable = NetworkOperator.requestTimetable(campDevice);
+			setState("IN_FLIGHT");
+			startLandingCountdown(_flight_duration);
+			break;
+		case "IN_TOWN":
+			HostInfo airCompany = getAirCompanyDevice();
+			_requests = NetworkOperator.requestRecords(airCompany);
+			_timetable = NetworkOperator.requestTimetable(airCompany);
+			setState("IN_FLIGHT");
+			startLandingCountdown(_flight_duration);
+			break;
+		case "IN_FLIGHT":
+			System.out.println("Cannon take off. Already in the sky!");
+			break;
+		default:
+			System.out.println("Cannon take off. Undefined state!");
+			break;
+		}
+	}
+	
+	/**
+	 * This function is being called after helicopter flight duration ends.
+	 * 
+	 * When helicopter lands in camp, it sends requests and timetable, 
+	 * passed from air company. When it comes from camp, it sends only requests,
+	 * because air company do not need timetable.
+	 */
+	public void landed()
+	{
+		SimpleDateFormat ft = new SimpleDateFormat ("HH:mm dd/MM/yyyy");
+		Date date = new Date();		
+		System.out.println("Countdown timer called \"LANDING\". Current time is: " + ft.format(date));
+		
+		switch (_previousState) {
+		case "IN_TOWN":
+			HostInfo campDevice = getCampDevice();
+			if (campDevice != null) {
+				NetworkOperator.sendRequests(campDevice, _requests);
+				NetworkOperator.sendTimetable(campDevice, _timetable);				
+			} else {
+				System.out.println("No camp device to land. Destroyed helicopter...");
+				deinitialize_helicopter();
+				System.exit(0);
+			}
+			break;
+		case "IN_CAMP":
+			HostInfo airCompany = getAirCompanyDevice();
+			if (airCompany != null) {
+				NetworkOperator.sendRequests(airCompany, _requests);				
+			} else {
+				System.out.println("No air company device to land. Destroyed helicopter...");
+				deinitialize_helicopter();
+				System.exit(0);
+			}
+			break;
+		default:
+			//System.out.println("Invalid previous state. Cannot define where did helicopter landed.");
+			break;
+		}
+	}
+
+	/* Requesting air company and camp device host info */
+	private HostInfo getAirCompanyDevice() {
+		LinkedList<HostInfo> airCompanies = _finder.jmdnsRequestDevices("_aircompany._tcp.local.");
+		if (!airCompanies.isEmpty()) {
+			return airCompanies.getFirst();			
+		} else {
+			return null;
+		}		
+	}
+
+	private HostInfo getCampDevice() {
+		LinkedList<HostInfo> campDevices = _finder.jmdnsRequestDevices("_camp._tcp.local.");
+		if (!campDevices.isEmpty()) {
+			return campDevices.getFirst();			
+		} else {
+			return null;
+		}
+	}
+	
+	/* Additional functions for operations with helicopter state */	
+	private boolean initialize_helicopter()
+	{
+		/* Initial state setup */
+		System.out.println("Helicopter device application initialization...");		
+		
+		_requests = new ArrayList<RequestRecord>();
+		_timetable = new ArrayList<TimeTableEntry>();
+		
+		_operator = new HelicopterNetworkOperator();
+		_operator.setHelicopterDevice(this);
+		_operator.start();
+		
+		_finder = new ActiveDeviceFinder("_helicopter._tcp.local.", "Helicopter", _operator.getPort());
+		HostInfo airCompany = getAirCompanyDevice();
+		if (airCompany == null) {			
+			System.out.println("Helicopter: no air company in the system. Exit.");
+			deinitialize_helicopter();
+			System.exit(0);			
+		}
+		
+		HostInfo campDevice = getCampDevice();
+		if (campDevice == null) {
+			System.out.println("Helicopter: no camp device in the system. Exit.");
+			deinitialize_helicopter();
+			System.exit(0);	
+		}
+		
+		System.out.println("Input the name of owner air company: ");
+		_owner = readLine();
+		
+		System.out.println("Input flight duration (in seconds): ");
+		String duration = readLine();
+		if (Integer.valueOf(duration) != 0) {
+			_flight_duration = Integer.valueOf(duration) * 1000; 
+		}		
+		
+		System.out.println("Select the initial state: ");
+		System.out.println("1. IN TOWN");
+		System.out.println("2. IN CAMP");
+		_state = readLine();
+		switch (_state) {
+		case "1":
+			_state = "IN_TOWN";		
+			break;
+		case "2":
+			_state = "IN_CAMP";
+			break;
+		default:
+			System.out.println("Invalid initial state.");
+			return false;			
+		}		
+		
+		return true;
+	}
+	
+	private void deinitialize_helicopter()
+	{		
+		System.out.println("Closing application...");
+		 
+		_finder.closeJmDNS();
+		_operator.stopAccepting();	
+				
+		try {		
+			_operator.join();		
+		} catch (InterruptedException e) {
+			System.out.println("join() interrupted");
+		}
+		
+		System.out.println("Application closed.");
+	}
+	
+	private void startLandingCountdown(int flightDuration)
+	{
+		// create a new daemon timer
+		SimpleDateFormat ft = new SimpleDateFormat ("HH:mm dd/MM/yyyy");
+		Date date = new Date();		
+		System.out.println("Countdown timer launched. Current time is: " + ft.format(date));
+		Timer countdownTimer = new Timer(true);
+		countdownTimer.schedule(new LandNotifyTask(this), (long)flightDuration);		
+	}
+	
+	/** Function for reading input line	
+	 *  
+	 * @return string containing user input
+	 */
+	public static String readLine()
+	{
+		String s = "0";		
+		try {
+			InputStreamReader converter = new InputStreamReader(System.in);
+			BufferedReader in = new BufferedReader(converter);
+			s = in.readLine();			
+		} 
+		catch (IOException e) {
+			e.printStackTrace();
+		}
+		return s;
+	}	
+}
